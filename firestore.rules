@@ -1,0 +1,110 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: attendance
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required) - Employee ID
+    //   - userName: string (required) - Employee Name
+    //   - timestamp: string (required) - ISO 8601 Date String
+    //   - latitude: number (optional)
+    //   - longitude: number (optional)
+    //   - image: string (required) - Base64 image
+    //   - type: string (required) - 'Time In' or 'Time Out'
+    //   - locationName: string (optional)
+    //   - isFlagged: boolean (optional)
+    //   - authorUid: string (required) - Firebase Auth UID
+    //
+    // Collection: users
+    // Document ID: Firebase Auth UID
+    // Fields:
+    //   - email: string (required)
+    //   - role: string (required) - 'admin' or 'user'
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+        (request.auth.token.email in ["info@acestool.com", "buveendra.illangage@gmail.com", "nelushapushpawela@gmail.com"] && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.authorUid;
+    }
+
+    function uidUnchanged() {
+      return !('authorUid' in request.resource.data) || request.resource.data.authorUid == request.auth.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isValidAttendanceRecord(data) {
+      return hasRequiredFields(['userId', 'userName', 'timestamp', 'image', 'type', 'authorUid']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.userName is string && data.userName.size() > 0 && data.userName.size() < 200 &&
+             isValidDateString(data.timestamp) &&
+             data.image is string && data.image.size() < 10485760 && // 10MB limit
+             data.type in ['Time In', 'Time Out'] &&
+             data.authorUid == request.auth.uid &&
+             (!('latitude' in data) || data.latitude == null || data.latitude is number) &&
+             (!('longitude' in data) || data.longitude == null || data.longitude is number) &&
+             (!('locationName' in data) || data.locationName == null || (data.locationName is string && data.locationName.size() < 200)) &&
+             (!('isFlagged' in data) || data.isFlagged == null || data.isFlagged is bool);
+    }
+
+    function isValidUser(data) {
+      return hasRequiredFields(['email', 'role']) &&
+             data.email is string && data.email.size() > 0 && data.email.size() < 200 &&
+             data.role in ['admin', 'user'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /attendance/{recordId} {
+      // Anyone authenticated can create a record (clock in/out)
+      allow create: if isAuthenticated() && isValidAttendanceRecord(request.resource.data) && uidUnchanged();
+      
+      // Allow any authenticated user to read records so they can determine Time In/Out status
+      allow read: if isAuthenticated();
+      
+      // Only admins can update or delete records
+      allow update: if isAdmin() && isValidAttendanceRecord(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      // Users can read their own profile, admins can read all
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      
+      // Only admins can create or update roles, except a user can create their own profile as 'user'
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((request.auth.uid == userId && request.resource.data.role == 'user') || isAdmin());
+      
+      allow update: if isAdmin() && isValidUser(request.resource.data);
+      allow delete: if isAdmin();
+    }
+  }
+}

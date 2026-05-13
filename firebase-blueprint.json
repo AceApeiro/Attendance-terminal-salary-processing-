@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "A record of an employee clocking in or out.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The employee ID (XG_NO)."
+        },
+        "userName": {
+          "type": "string",
+          "description": "The employee's name."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the record was created."
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude of the clock-in location."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude of the clock-in location."
+        },
+        "image": {
+          "type": "string",
+          "description": "Base64 encoded image or URL of the photo taken."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["Time In", "Time Out"],
+          "description": "Whether this is a clock in or clock out."
+        },
+        "locationName": {
+          "type": "string",
+          "description": "The name of the location."
+        },
+        "isFlagged": {
+          "type": "boolean",
+          "description": "Whether the location was out of range."
+        },
+        "authorUid": {
+          "type": "string",
+          "description": "The Firebase Auth UID of the user who created the record."
+        }
+      },
+      "required": ["userId", "userName", "timestamp", "image", "type", "authorUid"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user of the application.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "user"]
+        }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "attendance": {
+      "schema": {
+        "$ref": "#/entities/AttendanceRecord"
+      },
+      "description": "Stores all attendance records."
+    },
+    "users": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "Stores user roles and profiles."
+    }
+  }
+}

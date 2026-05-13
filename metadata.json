@@ -1,0 +1,9 @@
+{
+  "name": "X Guard Attendance Terminal ",
+  "description": "Attendance terminal with camera and geolocation",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}
